@@ -26,10 +26,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Assuming backend might interact with host_agent
+      host_agent:
+        condition: service_started
     ports:
-      - "8000:8000"
+      - "8000:8000" # FastAPI backend port
     env_file:
       - .env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload # Explicitly set backend command
 
   frontend:
     build:
@@ -41,6 +45,38 @@ services:
       - backend
     ports:
       - "12000:12000"
+    env_file:
+      - .env
+
+  database_agent:
+    build:
+      context: .
+      dockerfile: app/agents/database_agent/Dockerfile  # 맞춤형 Dockerfile 사용
+    container_name: db-agent-database-agent
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Expose port 10001 for the database agent A2A server
+      - "10001:10001"
+    env_file:
+      - .env
+
+
+  host_agent:
+    build:
+      context: .
+      dockerfile: app/agents/host/multiagent/Dockerfile
+    container_name: db-agent-host-agent
+    restart: always
+    depends_on:
+      # Host agent needs the database agent to be available
+      database_agent:
+        condition: service_started
+    ports:
+      # If host agent exposes its own A2A interface on 10000
+      - "10000:10000"
     env_file:
       - .env
 

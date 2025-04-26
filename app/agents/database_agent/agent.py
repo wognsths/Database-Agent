@@ -8,10 +8,10 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, ToolMessage
 
-from core.config import settings
-from core.database import db, schema_manager
-from core.models import QueryRequest, QueryResponse, SQLResultMessage
-from database_agent.tools import get_database_schema, get_table_list, get_table_sample, run_custom_query
+from app.core.config import settings
+from app.core.database import db, schema_manager
+from app.core.models import QueryRequest, QueryResponse, SQLResultMessage
+from app.agents.database_agent.tools import get_database_schema, get_table_list, get_table_sample, run_custom_query
 
 memory = MemorySaver()
 

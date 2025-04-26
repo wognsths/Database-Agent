@@ -62,7 +62,7 @@ class ADKHostManager(ApplicationManager):
     self._session_service = InMemorySessionService()
     self._artifact_service = InMemoryArtifactService()
     self._memory_service = InMemoryMemoryService()
-    self._host_agent = HostAgent([], self.task_callback)
+    self._host_agent = HostAgent(["http://database_agent:10001"], self.task_callback)
     self.user_id = "test_user"
     self.app_name = "A2A"
     self.api_key = api_key or os.environ.get("GOOGLE_API_KEY", "")

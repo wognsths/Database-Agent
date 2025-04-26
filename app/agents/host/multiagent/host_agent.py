@@ -4,7 +4,14 @@ import functools
 import json
 import uuid
 import threading
+import time
+import httpx
+import logging
 from typing import List, Optional, Callable
+
+# Logging settings
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from google.genai import types
 import base64
@@ -44,19 +51,68 @@ class HostAgent:
         remote_agent_addresses: List[str],
         task_callback: TaskUpdateCallback | None = None
     ):
+        logger.info(f"Starting HostAgent initialization. Agent addresses to connect: {remote_agent_addresses}")
         self.task_callback = task_callback
         self.remote_agent_connections: dict[str, RemoteAgentConnections] = {}
         self.cards: dict[str, AgentCard] = {}
+        
+        # Add retry logic for agent connections
         for address in remote_agent_addresses:
-            card_resolver = A2ACardResolver(address)
-            card = card_resolver.get_agent_card()
-            remote_connection = RemoteAgentConnections(card)
-            self.remote_agent_connections[card.name] = remote_connection
-            self.cards[card.name] = card
+            max_retries = 5  # Increased retry count
+            retry_delay = 3  # Decreased retry interval
+            for retry in range(max_retries):
+                try:
+                    logger.info(f"Attempting to connect to agent: {address} (attempt: {retry+1}/{max_retries})")
+                    # Set explicit timeout
+                    card_resolver = A2ACardResolver(address)
+                    # Print API endpoint information
+                    card_url = card_resolver.base_url + "/" + card_resolver.agent_card_path
+                    logger.info(f"Agent card URL: {card_url}")
+                    
+                    # Direct request to better capture connection timeout errors
+                    client = httpx.Client(timeout=10.0)  # 10 second timeout
+                    try:
+                        logger.info(f"Sending GET request: {card_url}")
+                        response = client.get(card_url)
+                        logger.info(f"Response status code: {response.status_code}, content: {response.text[:100]}...")
+                    except Exception as req_error:
+                        logger.error(f"Direct HTTP request failed: {str(req_error)}")
+                        raise
+                    
+                    # Normal agent card parsing and connection addition
+                    card = card_resolver.get_agent_card()
+                    logger.info(f"Agent card received: {card.name}")
+                    remote_connection = RemoteAgentConnections(card)
+                    self.remote_agent_connections[card.name] = remote_connection
+                    self.cards[card.name] = card
+                    logger.info(f"Successfully connected to agent '{card.name}'. Address: {address}")
+                    break
+                except (httpx.ConnectError, httpx.ReadTimeout) as e:
+                    logger.error(f"Network error: Cannot connect to {address}: {str(e)}")
+                    if retry < max_retries - 1:
+                        logger.info(f"Retrying after {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                    else:
+                        logger.error(f"Connection failed after {max_retries} attempts. Skipping agent: {address}")
+                except Exception as e:
+                    logger.error(f"Agent connection exception: {str(e)}, type: {type(e)}")
+                    if retry < max_retries - 1:
+                        logger.info(f"Retrying after {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                    else:
+                        logger.error(f"Connection failed after {max_retries} attempts. Skipping agent: {address}")
+        
+        # Connected agent summary
+        if not self.cards:
+            logger.warning("No connected agents!")
+        else:
+            logger.info(f"Connected to a total of {len(self.cards)} agents: {list(self.cards.keys())}")
+            
         agent_info = []
         for ra in self.list_remote_agents():
             agent_info.append(json.dumps(ra))
         self.agents = "\n".join(agent_info)
+        logger.info("HostAgent initialization complete")
 
     def register_agent_card(self, card: AgentCard):
         remote_connection = RemoteAgentConnections(card)

@@ -1,7 +1,7 @@
-from typing import Any, Dict, List, Optional, Literal, AsyncIterable
+from typing import Any
 from langchain_core.tools import tool
 import httpx
-from core.config import settings
+from app.core.config import settings
 BASE_URL = settings.BASE_URL
 
 
@@ -22,18 +22,22 @@ def request_helper(method: str, endpoint: str, **kwargs) -> Any:
 
 @tool
 def get_database_schema() -> Any:
+    """Fetch the full database schema."""
     return request_helper("get", "/api/schema")
 
 @tool
 def get_table_list() -> Any:
+    """Retrieve a list of all tables in the database."""
     return request_helper("get", "/api/tables")
 
 @tool
 def get_table_sample(table_name: str, limit: int = 5) -> Any:
+    """Get a sample of rows from a specific table."""
     return request_helper(
         "get",
         f"/api/sample/{table_name}?limit={limit}")
 
 @tool
 def run_custom_query(sql_query: str) -> Any:
+    """Run a custom SQL query against the database."""
     return request_helper("post", "/api/query", json={"query": sql_query})
