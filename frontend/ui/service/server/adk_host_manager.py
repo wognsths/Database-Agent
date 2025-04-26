@@ -20,8 +20,8 @@ from app.common.types import (
     FileContent,
     Part,
 )
-from app.hosts.multiagent.host_agent import HostAgent
-from app.hosts.multiagent.remote_agent_connection import (
+from app.agents.host.multiagent.host_agent import HostAgent
+from app.agents.host.multiagent.remote_agent_connection import (
     TaskCallbackArg,
 )
 from utils.agent_card import get_agent_card

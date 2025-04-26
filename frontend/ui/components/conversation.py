@@ -11,7 +11,7 @@ from state.host_agent_service import SendMessage, ListConversations, convert_mes
 from .chat_bubble import chat_bubble
 from .form_render import is_form, render_form, form_sent
 from .async_poller import async_poller, AsyncAction
-from common.types import Message, TextPart
+from app.common.types import Message, TextPart
 
 
 @me.stateclass

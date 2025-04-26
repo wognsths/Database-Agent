@@ -11,7 +11,7 @@ from state.agent_state import AgentState
 from state.host_agent_service import ListRemoteAgents, AddRemoteAgent
 from state.state import AppState
 from utils.agent_card import get_agent_card
-from common.types import JSONRPCError
+from app.common.types import JSONRPCError
 
 
 def agent_list_page(app_state: AppState):

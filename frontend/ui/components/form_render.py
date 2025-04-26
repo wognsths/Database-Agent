@@ -5,7 +5,7 @@ import uuid
 import dataclasses
 from state.state import AppState, StateMessage
 from state.host_agent_service import SendMessage
-from common.types import Message, DataPart, TextPart
+from app.common.types import Message, DataPart, TextPart
 
 ROW_GAP = 15
 BOX_PADDING = 20

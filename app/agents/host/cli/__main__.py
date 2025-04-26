@@ -6,9 +6,9 @@ import os
 import urllib
 from uuid import uuid4
 
-from common.client import A2ACardResolver, A2AClient
-from common.types import TaskState, Task, TextPart, FilePart, FileContent
-from common.utils.push_notification_auth import PushNotificationReceiverAuth
+from app.common.client import A2ACardResolver, A2AClient
+from app.common.types import TaskState, Task, TextPart, FilePart, FileContent
+from app.common.utils.push_notification_auth import PushNotificationReceiverAuth
 
 @click.command()
 @click.option("--agent", default="http://localhost:10000")

@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from core.config import settings
+from .config import settings
 import logging
 from sqlalchemy import inspect, MetaData
 
@@ -151,7 +151,7 @@ class SchemaManager:
                 default  = f"DEFAULT {col['default']}" if col["default"] != "None" else ""
                 primary  = "PRIMARY KEY" if col["name"] in table_info["primary_keys"] else ""
 
-                table_str += f"  - {col["name"]} {col["type"]} {nullable} {default} {primary}\n"
+                table_str += f"  - {col['name']} {col['type']} {nullable} {default} {primary}\n"
 
             # Foreign key info
             if table_info["foreign_keys"]:

@@ -28,7 +28,7 @@ from .state import (
 )
 import asyncio
 import threading
-from common.types import Artifact, Message, Task, Part
+from app.common.types import Artifact, Message, Task, Part
 
 server_url = "http://localhost:12000"
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from core.database import schema_manager
+from app.core.database import schema_manager
 
 router = APIRouter()
 

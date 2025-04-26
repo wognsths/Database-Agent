@@ -1,23 +1,27 @@
 FROM python:3.10-slim
 
-WORKDIR /app
+WORKDIR /workspace
 
-# 필요한 패키지 설치
+# Install required system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 의존성 파일 복사 및 설치
+# Copy and install Python dependencies
 COPY frontend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 애플리케이션 코드 복사
-COPY frontend/ .
-COPY common/ ./common
+# Copy application code to maintain project structure
+COPY frontend/ /workspace/frontend/
+COPY app/common/ /workspace/app/common/
+COPY app/agents/ /workspace/app/agents/
 
-# 포트 설정
+# Set Python module path
+ENV PYTHONPATH=/workspace
+
+# Expose the application port
 EXPOSE 12000
 
-# 실행 명령
-CMD ["python", "ui/main.py"] 
+# Define the startup command
+CMD ["python", "frontend/ui/main.py"]
