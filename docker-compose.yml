@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: db-agent-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=your_password
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: db-agent-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=your_password
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=postgres
+      - BASE_URL=http://backend:8000
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: db-agent-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "12000:12000"
+    environment:
+      - A2A_UI_HOST=0.0.0.0
+      - A2A_UI_PORT=12000
+      - DEBUG_MODE=true
+      - GOOGLE_API_KEY=your_google_api_key
+      - GOOGLE_GENAI_USE_VERTEXAI=FALSE
+
+volumes:
+  postgres_data: 
