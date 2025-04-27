@@ -34,6 +34,7 @@ from google.adk.events.event import Event as ADKEvent
 from google.adk.events.event_actions import EventActions as ADKEventActions
 from google.genai import types
 import base64
+import logging
 
 
 class ADKHostManager(ApplicationManager):
@@ -214,14 +215,25 @@ class ADKHostManager(ApplicationManager):
     self._tasks.append(task)
 
   def update_task(self, task: Task):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Updating task {task.id}, state: {task.status.state}")
+    
     for i, t in enumerate(self._tasks):
       if t.id == task.id:
         self._tasks[i] = task
+        logger.info(f"Task {task.id} updated successfully")
         return
+    logger.warning(f"Task {task.id} not found in task list for update")
 
   def task_callback(self, task: TaskCallbackArg, agent_card: AgentCard):
+    logger = logging.getLogger(__name__)
+    logger.info(f"task_callback triggered. Task type: {type(task).__name__}, Agent: {agent_card.name}")
+    
     self.emit_event(task, agent_card)
     if isinstance(task, TaskStatusUpdateEvent):
+      logger.info(f"Processing TaskStatusUpdateEvent. Task ID: {task.id}, State: {task.status.state}")
+      if task.status.message and task.status.message.parts:
+        logger.info(f"Message parts: {[p.type for p in task.status.message.parts]}")
       current_task = self.add_or_get_task(task)
       current_task.status = task.status
       self.attach_message_to_task(task.status.message, current_task.id)
@@ -230,23 +242,29 @@ class ADKHostManager(ApplicationManager):
       self.insert_id_trace(task.status.message)
       return current_task
     elif isinstance(task, TaskArtifactUpdateEvent):
+      logger.info(f"Processing TaskArtifactUpdateEvent. Task ID: {task.id}")
       current_task = self.add_or_get_task(task)
       self.process_artifact_event(current_task, task)
       self.update_task(current_task)
       return current_task
     # Otherwise this is a Task, either new or updated
     elif not any(filter(lambda x: x.id == task.id, self._tasks)):
+      logger.info(f"Processing new Task. Task ID: {task.id}, State: {task.status.state}")
       self.attach_message_to_task(task.status.message, task.id)
       self.insert_id_trace(task.status.message)
       self.add_task(task)
       return task
     else:
+      logger.info(f"Processing existing Task. Task ID: {task.id}, State: {task.status.state}")
       self.attach_message_to_task(task.status.message, task.id)
       self.insert_id_trace(task.status.message)
       self.update_task(task)
       return task
 
   def emit_event(self, task: TaskCallbackArg, agent_card: AgentCard):
+    logger = logging.getLogger(__name__)
+    logger.info(f"emit_event called for task {task.id} from agent {agent_card.name}")
+    
     content = None
     conversation_id = get_conversation_id(task)
     metadata = {'conversation_id': conversation_id} if conversation_id else None
@@ -282,12 +300,14 @@ class ADKHostManager(ApplicationManager):
           role="agent",
           metadata=metadata,
       )
-    self.add_event(Event(
+    event = Event(
           id=str(uuid.uuid4()),
           actor=agent_card.name,
           content=content,
           timestamp=datetime.datetime.utcnow().timestamp(),
-    ))
+    )
+    logger.info(f"Created event {event.id} with content parts: {[p.type for p in content.parts] if content and content.parts else 'None'}")
+    self.add_event(event)
 
   def attach_message_to_task(self, message: Message | None, task_id: str):
     if message and message.metadata and 'message_id' in message.metadata:

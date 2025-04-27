@@ -116,6 +116,9 @@ async def completeTask(client: A2AClient, streaming, use_push_notifications: boo
         response_stream =client.send_task_streaming(payload)
         async for result in response_stream:
             print(f"stream event => {result.model_dump_json(exclude_none=True)}")
+            taskResult = result
+    else:
+        taskResult = await client.send_task(payload)     
 
     
     state = TaskState(taskResult.result.status.state)

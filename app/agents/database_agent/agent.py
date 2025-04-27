@@ -74,7 +74,20 @@ class DBAgent:
                     "content": "Executing SQL query and formatting results...",
                 }            
         
-        yield self.get_agent_response(config)
+        current_state = self.graph.get_state(config)
+        structured_response = current_state.values.get('structured_response')
+        if structured_response and isinstance(structured_response, DBAgentResponse):
+            yield {
+                "is_task_complete": True if structured_response.status == "completed" else False,
+                "require_user_input": structured_response.status == "input_required",
+                "content": structured_response.message,
+            }
+        else:
+            yield {
+                "is_task_complete": False,
+                "require_user_input": True,
+                "content": "We are unable to process your request at the moment. Please try again.",
+            }
 
 
     def get_agent_response(self, config):
@@ -85,19 +98,19 @@ class DBAgent:
                 return {
                     "is_task_complete": False,
                     "require_user_input": True,
-                    "content": structured_response.content
+                    "content": structured_response.message
                 }
             elif structured_response.status == "error":
                 return {
                     "is_task_complete": False,
                     "require_user_input": True,
-                    "content": structured_response.content
+                    "content": structured_response.message
                 }
             elif structured_response.status == "completed":
                 return {
                     "is_task_complete": True,
                     "require_user_input": False,
-                    "content": structured_response.content
+                    "content": structured_response.message
                 }
 
         return {

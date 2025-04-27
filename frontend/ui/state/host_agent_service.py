@@ -109,34 +109,50 @@ async def ListMessages(conversation_id: str) -> list[Message]:
 
 async def UpdateAppState(state: AppState, conversation_id: str):
   """Update the app state."""
+  import logging
+  logger = logging.getLogger(__name__)
+  
   try:
+    logger.info(f"UpdateAppState called for conversation: {conversation_id}")
     if conversation_id:
       state.current_conversation_id = conversation_id
       messages = await ListMessages(conversation_id)
       if not messages:
+        logger.info(f"No messages found for conversation {conversation_id}")
         state.messages = []
       else:
+        logger.info(f"Retrieved {len(messages)} messages for conversation {conversation_id}")
         state.messages = [convert_message_to_state(x) for x in messages]
+        for msg in state.messages:
+          logger.info(f"Message {msg.message_id}, Role: {msg.role}, Content types: {[c[1] for c in msg.content]}")
+    
     conversations = await ListConversations()
     if not conversations:
+      logger.info("No conversations found")
       state.conversations = []
     else:
+      logger.info(f"Retrieved {len(conversations)} conversations")
       state.conversations = [
           convert_conversation_to_state(x) for x in conversations
       ]
 
     state.task_list = []
-    for task in await GetTasks():
+    tasks = await GetTasks()
+    logger.info(f"Retrieved {len(tasks)} tasks")
+    for task in tasks:
+      logger.info(f"Processing task {task.id}, state: {task.status.state}")
       state.task_list.append(
           SessionTask(
               session_id=extract_conversation_id(task),
               task=convert_task_to_state(task)
           )
       )
+    
     state.background_tasks = await GetProcessingMessages()
+    logger.info(f"Background tasks: {state.background_tasks}")
     state.message_aliases = GetMessageAliases()
   except Exception as e:
-    print("Failed to update state: ", e)
+    logger.error(f"Failed to update state: {str(e)}")
     traceback.print_exc(file=sys.stdout)
     
 async def UpdateApiKey(api_key: str):

@@ -5,6 +5,7 @@ import asyncio
 import uuid
 import functools
 import threading
+import logging
 
 from state.state import AppState, SettingsState, StateMessage
 from state.host_agent_service import SendMessage, ListConversations, convert_message_to_state
@@ -88,11 +89,16 @@ async def send_message_button(e: me.ClickEvent):  # pylint: disable=unused-argum
 @me.component
 def conversation():
     """Conversation component"""
+    logger = logging.getLogger(__name__)
+    
     page_state = me.state(PageState)
     app_state = me.state(AppState)
     if "conversation_id" in me.query_params:
       page_state.conversation_id = me.query_params["conversation_id"]
       app_state.current_conversation_id = page_state.conversation_id
+    
+    logger.info(f"Rendering conversation. Messages count: {len(app_state.messages)}")
+    
     with me.box(
         style=me.Style(
             display="flex",
@@ -101,15 +107,21 @@ def conversation():
         )
     ):
       for message in app_state.messages:
+        logger.info(f"Processing message: {message.message_id}, Role: {message.role}")
+        logger.info(f"Message content: {message.content}")
+        
         if is_form(message):
+          logger.info(f"Rendering form for message {message.message_id}")
           render_form(message, app_state)
         elif form_sent(message, app_state):
+          logger.info(f"Rendering form submitted message for {message.message_id}")
           chat_bubble(StateMessage(
               message_id=message.message_id,
               role=message.role,
               content=[("Form submitted", "text/plain")]
           ), message.message_id)
         else:
+          logger.info(f"Rendering chat bubble for message {message.message_id}")
           chat_bubble(message, message.message_id)
 
       with me.box(

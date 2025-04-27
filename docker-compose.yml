@@ -16,6 +16,46 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - a2a_network
+
+  database_agent:
+    build:
+      context: .
+      dockerfile: app/agents/database_agent/Dockerfile
+    container_name: db-agent-database-agent
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "10001:10001"
+    env_file:
+      - .env
+    networks:
+      - a2a_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl", "-f", "http://localhost:10001/health || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  host_agent:
+    build:
+      context: .
+      dockerfile: app/agents/host/multiagent/Dockerfile
+    container_name: db-agent-host-agent
+    restart: always
+    depends_on:
+      database_agent:
+        condition: service_started
+    ports:
+      - "10000:10000"
+    env_file:
+      - .env
+    networks:
+      - a2a_network
 
   backend:
     build:
@@ -26,14 +66,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # Assuming backend might interact with host_agent
+      database_agent:
+        condition: service_started
       host_agent:
         condition: service_started
     ports:
-      - "8000:8000" # FastAPI backend port
+      - "8000:8000"
     env_file:
       - .env
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload # Explicitly set backend command
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - a2a_network
 
   frontend:
     build:
@@ -47,38 +90,12 @@ services:
       - "12000:12000"
     env_file:
       - .env
-
-  database_agent:
-    build:
-      context: .
-      dockerfile: app/agents/database_agent/Dockerfile  # 맞춤형 Dockerfile 사용
-    container_name: db-agent-database-agent
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      # Expose port 10001 for the database agent A2A server
-      - "10001:10001"
-    env_file:
-      - .env
-
-
-  host_agent:
-    build:
-      context: .
-      dockerfile: app/agents/host/multiagent/Dockerfile
-    container_name: db-agent-host-agent
-    restart: always
-    depends_on:
-      # Host agent needs the database agent to be available
-      database_agent:
-        condition: service_started
-    ports:
-      # If host agent exposes its own A2A interface on 10000
-      - "10000:10000"
-    env_file:
-      - .env
+    networks:
+      - a2a_network
 
 volumes:
-  postgres_data: 
+  postgres_data:
+
+networks:
+  a2a_network:
+    driver: bridge

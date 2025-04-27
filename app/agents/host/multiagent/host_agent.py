@@ -264,10 +264,36 @@ Current agent: {current_agent['active_agent']}
         response = []
         if task.status.message:
             # Assume the info is in the task message.
+            logger.info(f"Response received from {agent_name}. Task state: {task.status.state}")
+            logger.info(f"Task message parts: {[p.type for p in task.status.message.parts if task.status.message and task.status.message.parts]}")
             response.extend(convert_parts(task.status.message.parts, tool_context))
         if task.artifacts:
+            logger.info(f"Artifacts received from {agent_name}: {len(task.artifacts)}")
             for artifact in task.artifacts:
+                logger.info(f"Artifact parts: {[p.type for p in artifact.parts]}")
                 response.extend(convert_parts(artifact.parts, tool_context))
+
+        if self.task_callback and response:
+            from app.common.types import TaskStatusUpdateEvent, TaskStatus
+            import datetime
+
+            logger.info(f"Task callback triggered. Response content: {response}")
+            self.task_callback(
+                TaskStatusUpdateEvent(
+                    id=task.id,
+                    sessionId=task.sessionId,
+                    status=TaskStatus(
+                        state=task.status.state,
+                        message=Message(
+                            role="agent",
+                            parts=[TextPart(text="\n".join(map(str, response)))]
+                        ),
+                        timestamp=datetime.datetime.now().isoformat()
+                    )
+                ),
+                card
+            )
+        logger.info(f"send_task method completed. Response: {response}")
         return response
     
 def convert_parts(parts: list[Part], tool_context: ToolContext):

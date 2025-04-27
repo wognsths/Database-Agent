@@ -2,7 +2,7 @@ import unittest
 from typing import List, Any
 from service.server.adk_host_manager import ADKHostManager
 from google.genai import types
-from common.types import TextPart, FilePart, DataPart
+from app.common.types import TextPart, FilePart, DataPart
 
 
 class ADKHostManagerTest(unittest.TestCase):
