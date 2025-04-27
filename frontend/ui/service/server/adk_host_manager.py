@@ -228,21 +228,41 @@ class ADKHostManager(ApplicationManager):
   def task_callback(self, task: TaskCallbackArg, agent_card: AgentCard):
     logger = logging.getLogger(__name__)
     logger.info(f"task_callback triggered. Task type: {type(task).__name__}, Agent: {agent_card.name}")
+    logger.info(f"Task ID: {task.id}, Task contents: {task}")
     
     self.emit_event(task, agent_card)
     if isinstance(task, TaskStatusUpdateEvent):
       logger.info(f"Processing TaskStatusUpdateEvent. Task ID: {task.id}, State: {task.status.state}")
       if task.status.message and task.status.message.parts:
         logger.info(f"Message parts: {[p.type for p in task.status.message.parts]}")
+        for part in task.status.message.parts:
+          logger.info(f"Message part content: {part}")
       current_task = self.add_or_get_task(task)
       current_task.status = task.status
       self.attach_message_to_task(task.status.message, current_task.id)
       self.insert_message_history(current_task, task.status.message)
       self.update_task(current_task)
       self.insert_id_trace(task.status.message)
+      
+      # 메시지 리스트에 메시지 추가 (UI에 표시되도록)
+      if task.status.message:
+        self._messages.append(task.status.message)
+        # 대화 내용에도 메시지 추가
+        # TaskStatusUpdateEvent에는 sessionId가 없으므로 대화 ID를 메시지에서 가져옵니다
+        conversation_id = get_conversation_id(task)
+        if conversation_id:
+          logger.info(f"Adding message to conversation {conversation_id}")
+          conversation = self.get_conversation(conversation_id)
+          if conversation:
+            conversation.messages.append(task.status.message)
+      
       return current_task
     elif isinstance(task, TaskArtifactUpdateEvent):
       logger.info(f"Processing TaskArtifactUpdateEvent. Task ID: {task.id}")
+      if task.artifact and task.artifact.parts:
+        logger.info(f"Artifact parts: {[p.type for p in task.artifact.parts]}")
+        for part in task.artifact.parts:
+          logger.info(f"Artifact part content: {part}")
       current_task = self.add_or_get_task(task)
       self.process_artifact_event(current_task, task)
       self.update_task(current_task)
@@ -250,15 +270,45 @@ class ADKHostManager(ApplicationManager):
     # Otherwise this is a Task, either new or updated
     elif not any(filter(lambda x: x.id == task.id, self._tasks)):
       logger.info(f"Processing new Task. Task ID: {task.id}, State: {task.status.state}")
+      if task.status.message and task.status.message.parts:
+        logger.info(f"Message parts: {[p.type for p in task.status.message.parts]}")
+        for part in task.status.message.parts:
+          logger.info(f"Message part content: {part}")
       self.attach_message_to_task(task.status.message, task.id)
       self.insert_id_trace(task.status.message)
       self.add_task(task)
+      
+      # 메시지 리스트에 메시지 추가 (UI에 표시되도록)
+      if task.status.message:
+        self._messages.append(task.status.message)
+        # 대화 내용에도 메시지 추가
+        if hasattr(task, 'sessionId') and task.sessionId:
+          conversation = self.get_conversation(task.sessionId)
+          if conversation:
+            logger.info(f"Adding message to conversation {task.sessionId}")
+            conversation.messages.append(task.status.message)
+      
       return task
     else:
       logger.info(f"Processing existing Task. Task ID: {task.id}, State: {task.status.state}")
+      if task.status.message and task.status.message.parts:
+        logger.info(f"Message parts: {[p.type for p in task.status.message.parts]}")
+        for part in task.status.message.parts:
+          logger.info(f"Message part content: {part}")
       self.attach_message_to_task(task.status.message, task.id)
       self.insert_id_trace(task.status.message)
       self.update_task(task)
+      
+      # 메시지 리스트에 메시지 추가 (UI에 표시되도록)
+      if task.status.message:
+        self._messages.append(task.status.message)
+        # 대화 내용에도 메시지 추가
+        if hasattr(task, 'sessionId') and task.sessionId:
+          conversation = self.get_conversation(task.sessionId)
+          if conversation:
+            logger.info(f"Adding message to conversation {task.sessionId}")
+            conversation.messages.append(task.status.message)
+      
       return task
 
   def emit_event(self, task: TaskCallbackArg, agent_card: AgentCard):
@@ -267,25 +317,35 @@ class ADKHostManager(ApplicationManager):
     
     content = None
     conversation_id = get_conversation_id(task)
-    metadata = {'conversation_id': conversation_id} if conversation_id else None
+    logger.info(f"Conversation ID for task: {conversation_id}")
+    metadata = {'conversation_id': conversation_id} if conversation_id else {}
+    
     if isinstance(task, TaskStatusUpdateEvent):
+      logger.info(f"Creating event for TaskStatusUpdateEvent: {task.id}")
       if task.status.message:
         content = task.status.message
+        logger.info(f"Using message from task status: {content}")
       else:
         content = Message(
           parts=[TextPart(text=str(task.status.state))],
           role="agent",
           metadata=metadata,
         )
+        logger.info(f"Created new message for task status: {content}")
     elif isinstance(task, TaskArtifactUpdateEvent):
+      logger.info(f"Creating event for TaskArtifactUpdateEvent: {task.id}")
       content = Message(
           parts=task.artifact.parts,
           role="agent",
           metadata=metadata,
       )
+      logger.info(f"Created message from artifact parts: {content}")
     elif task.status and task.status.message:
+      logger.info(f"Creating event for Task with status message: {task.id}")
       content = task.status.message
-    elif task.artifacts:
+      logger.info(f"Using message from task status: {content}")
+    elif hasattr(task, 'artifacts') and task.artifacts:
+      logger.info(f"Creating event for Task with artifacts: {task.id}")
       parts = []
       for a in task.artifacts:
         parts.extend(a.parts)
@@ -294,12 +354,16 @@ class ADKHostManager(ApplicationManager):
           role="agent",
           metadata=metadata,
       )
+      logger.info(f"Created message from artifact parts: {content}")
     else:
+      logger.info(f"Creating default event for Task: {task.id}")
       content = Message(
           parts=[TextPart(text=str(task.status.state))],
           role="agent",
           metadata=metadata,
       )
+      logger.info(f"Created default message: {content}")
+    
     event = Event(
           id=str(uuid.uuid4()),
           actor=agent_card.name,
@@ -307,6 +371,19 @@ class ADKHostManager(ApplicationManager):
           timestamp=datetime.datetime.utcnow().timestamp(),
     )
     logger.info(f"Created event {event.id} with content parts: {[p.type for p in content.parts] if content and content.parts else 'None'}")
+    
+    # 이벤트에 대화 ID가 올바르게 설정되었는지 확인
+    if content and content.metadata and 'conversation_id' in content.metadata:
+      logger.info(f"Event has conversation_id in metadata: {content.metadata['conversation_id']}")
+    else:
+      logger.warning(f"Event does not have conversation_id in metadata: {content.metadata if content and content.metadata else 'None'}")
+      # 대화 ID가 없으면 추가
+      if content and metadata:
+        if not content.metadata:
+          content.metadata = {}
+        content.metadata.update(metadata)
+        logger.info(f"Added metadata to content: {content.metadata}")
+    
     self.add_event(event)
 
   def attach_message_to_task(self, message: Message | None, task_id: str):
@@ -557,11 +634,55 @@ def get_conversation_id(
         Message |
         None)
 ) -> str | None:
+  # TaskStatusUpdateEvent 처리
+  if isinstance(t, TaskStatusUpdateEvent):
+    # 첫 번째 방법: 메타데이터에서 대화 ID 확인
+    if hasattr(t, 'metadata') and t.metadata and 'conversation_id' in t.metadata:
+      return t.metadata['conversation_id']
+    # 두 번째 방법: 상태 메시지에서 대화 ID 확인
+    if hasattr(t, 'status') and t.status and hasattr(t.status, 'message') and t.status.message:
+      if t.status.message.metadata and 'conversation_id' in t.status.message.metadata:
+        return t.status.message.metadata['conversation_id']
+    # 세 번째 방법: sessionId를 직접 사용해 보기
+    if hasattr(t, 'sessionId') and t.sessionId:
+      return t.sessionId
+    return None
+    
+  # TaskArtifactUpdateEvent 처리  
+  if isinstance(t, TaskArtifactUpdateEvent):
+    # 첫 번째 방법: 메타데이터에서 대화 ID 확인
+    if hasattr(t, 'metadata') and t.metadata and 'conversation_id' in t.metadata:
+      return t.metadata['conversation_id']
+    # 두 번째 방법: 아티팩트에서 대화 ID 확인
+    if hasattr(t, 'artifact') and t.artifact and hasattr(t.artifact, 'metadata') and t.artifact.metadata:
+      if 'conversation_id' in t.artifact.metadata:
+        return t.artifact.metadata['conversation_id']
+    # 세 번째 방법: sessionId를 직접 사용해 보기
+    if hasattr(t, 'sessionId') and t.sessionId:
+      return t.sessionId
+    return None
+    
+  # Task 처리
+  if hasattr(t, 'sessionId') and t.sessionId:
+    return t.sessionId
+    
+  # 일반적인 방법: 메타데이터에서 대화 ID 확인
   if (t and
       hasattr(t, 'metadata') and
       t.metadata and
       'conversation_id' in t.metadata):
     return t.metadata['conversation_id']
+    
+  # 추가 방법: 상태 메시지에서 대화 ID 확인
+  if (hasattr(t, 'status') and 
+      t.status and 
+      hasattr(t.status, 'message') and 
+      t.status.message and 
+      hasattr(t.status.message, 'metadata') and 
+      t.status.message.metadata and 
+      'conversation_id' in t.status.message.metadata):
+    return t.status.message.metadata['conversation_id']
+    
   return None
 
 def task_still_open(task: Task | None) -> bool:

@@ -33,10 +33,14 @@ class RemoteAgentConnections:
             request: TaskSendParams,
             task_callback: TaskUpdateCallback | None,
     ) -> Task | None:
+        print(f"RemoteAgentConnections.send_task - Request: {request.model_dump()}")
+        print(f"Using A2AClient with URL: {self.agent_client.url}")
+        
         if self.card.capabilities.streaming:
+            print(f"Using streaming capabilities for agent: {self.card.name}")
             task = None
             if task_callback:
-                task_callback(Task(
+                initial_task = Task(
                     id=request.id,
                     sessionId=request.sessionId,
                     status=TaskStatus(
@@ -44,8 +48,12 @@ class RemoteAgentConnections:
                         message=request.message,
                     ),
                     history=[request.message],
-                ), self.card)
+                )
+                print(f"Calling task_callback with initial task: {initial_task}")
+                task_callback(initial_task, self.card)
+            
             async for response in self.agent_client.send_task_streaming(request.model_dump()):
+                print(f"Received streaming response: {response}")
                 merge_metadata(response.result, request)
                 # For task status updates, we need to propagate metadata and provide
                 # a unique message id.
@@ -59,30 +67,41 @@ class RemoteAgentConnections:
                     if 'message_id' in m.metadata:
                         m.metadata['last_message_id'] = m.metadata['message_id']
                     m.metadata['message_id'] = str(uuid.uuid4())
-                if task_callback:
-                    task = task_callback(response.result, self.card)
-                if hasattr(response.result, 'final') and response.result.final:
-                    break
-                return task
-            else:
-                response = await self.agent_client.send_task(request.model_dump())
-                merge_metadata(response.result, request)
-                # For task status updates, we need to propagate metadata and provide
-                # a unique message id.
-                if (hasattr(response.result, 'status') and
-                    hasattr(response.result.status, 'message') and
-                    response.result.status.message):
-                    merge_metadata(response.result.status.message, request.message)
-                    m = response.result.status.message
-                    if not m.metadata:
-                        m.metadata = {}
-                    if 'message_id' in m.metadata:
-                        m.metadata['last_message_id'] = m.metadata['message_id']
-                    m.metadata['message_id'] = str(uuid.uuid4())
                 
                 if task_callback:
-                    task_callback(response.result, self.card)
-                return response.result
+                    print(f"Calling task_callback with response: {response.result}")
+                    task = task_callback(response.result, self.card)
+                
+                if hasattr(response.result, 'final') and response.result.final:
+                    print("Final response received, breaking loop")
+                    break
+            
+            print(f"Streaming request complete, returning task: {task}")
+            return task
+        else:
+            print(f"Using non-streaming API for agent: {self.card.name}")
+            response = await self.agent_client.send_task(request.model_dump())
+            print(f"Received non-streaming response: {response}")
+            merge_metadata(response.result, request)
+            # For task status updates, we need to propagate metadata and provide
+            # a unique message id.
+            if (hasattr(response.result, 'status') and
+                hasattr(response.result.status, 'message') and
+                response.result.status.message):
+                merge_metadata(response.result.status.message, request.message)
+                m = response.result.status.message
+                if not m.metadata:
+                    m.metadata = {}
+                if 'message_id' in m.metadata:
+                    m.metadata['last_message_id'] = m.metadata['message_id']
+                m.metadata['message_id'] = str(uuid.uuid4())
+            
+            if task_callback:
+                print(f"Calling task_callback with response: {response.result}")
+                task_callback(response.result, self.card)
+            
+            print(f"Non-streaming request complete, returning: {response.result}")
+            return response.result
 
 def merge_metadata(target, source):
     if not hasattr(target, 'metadata') or not hasattr(source, 'metadata'):
