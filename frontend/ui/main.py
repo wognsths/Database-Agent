@@ -1,4 +1,3 @@
-
 """A UI solution and host service to interact with the agent framework.
 run:
   uv main.py
@@ -21,9 +20,15 @@ from pages.task_list import task_list_page
 from state import host_agent_service
 from service.server.server import ConversationServer
 
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Body
 from fastapi.middleware.wsgi import WSGIMiddleware
 from dotenv import load_dotenv
+import httpx
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -142,6 +147,31 @@ app.mount(
         me.create_wsgi_app(debug_mode=os.environ.get("DEBUG_MODE", "") == "true")
     ),
 )
+
+# Add a debug endpoint to test database agent communication
+@app.post("/debug/database_agent")
+async def debug_database_agent(data: dict = Body(...)):
+    try:
+        message = data.get("message", "Get db schema by using database agent")
+        logger.info(f"Debug endpoint called with message: {message}")
+        
+        # Send request to host agent
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "http://host_agent:10000/debug_db_agent",
+                json={"message": message}
+            )
+            
+            # Log the response
+            logger.info(f"Response status: {response.status_code}")
+            logger.info(f"Response content: {response.text[:1000]}")
+            
+            return response.json()
+    except Exception as e:
+        logger.error(f"Debug endpoint error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {"error": str(e)}
 
 if __name__ == "__main__":    
 

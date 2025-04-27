@@ -2,9 +2,11 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Body
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.agents.host.multiagent.host_agent import HostAgent  # Import host_agent class directly
+from app.core.config import settings
 import json
 import asyncio
 import logging
+import uuid
 
 # Logging settings
 logging.basicConfig(level=logging.INFO)
@@ -12,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 # Add detailed logging
 logger.info("Starting API module initialization")
-logger.info("Attempting to connect to database agent (http://database_agent:10001)...")
+logger.info("Attempting to connect to database agent (http://db-agent-database-agent:10001)...")
 
 # Create HostAgent instance directly instead of ADK agent
 try:
-    host_agent = HostAgent(["http://database_agent:10001"])
+    host_agent = HostAgent([settings.DATABASE_AGENT_URL])
     logger.info(f"HostAgent initialization complete. Connected agents: {host_agent.list_remote_agents()}")
 except Exception as e:
     logger.error(f"Error during HostAgent initialization: {str(e)}")
@@ -239,6 +241,44 @@ async def send_task(request_data: dict = Body(...)):
         return JSONResponse(content={"result": response})
     except Exception as e:
         logger.error(f"Task sending failed: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+# Add debugging endpoint for direct database agent communication
+@app.post("/debug_db_agent")
+async def debug_db_agent(request_data: dict = Body(...)):
+    try:
+        message = request_data.get("message", "Get db schema by using database agent")
+        logger.info(f"Debug endpoint called with message: {message}")
+        
+        # Create a custom tool context
+        class CustomToolContext:
+            def __init__(self):
+                self.state = {
+                    "session_id": str(uuid.uuid4()),
+                    "input_message_metadata": {"message_id": str(uuid.uuid4())}
+                }
+                self.actions = type('Actions', (), {'skip_summarization': False, 'escalate': False})
+                
+            def save_artifact(self, file_id, file_part):
+                # Implement artifact saving (if needed)
+                pass
+        
+        tool_context = CustomToolContext()
+        
+        # Make direct call to database agent
+        logger.info("Sending direct request to Database Agent...")
+        response = await host_agent.send_task("Database Agent", message, tool_context)
+        
+        # Log the response extensively
+        logger.info(f"Response from Database Agent: {response}")
+        
+        return JSONResponse(content={"result": response})
+    except Exception as e:
+        logger.error(f"Debug endpoint error: {str(e)}")
+        logger.exception("Full exception traceback:")
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
