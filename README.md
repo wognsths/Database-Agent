@@ -58,3 +58,32 @@ docker-compose down
 - AI: Google Gemini API
 - Database: PostgreSQL
 - Containerization: Docker, Docker Compose
+
+
+## .env
+```
+# Database settings
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=my_password
+POSTGRES_DB=postgres
+DB_USER=postgres
+DB_PASSWORD=my_password
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=postgres
+
+# Backend settings
+BASE_URL=http://db-agent-backend:8000
+
+# Frontend settings
+A2A_UI_HOST=0.0.0.0
+A2A_UI_PORT=12000
+DEBUG_MODE=true
+
+# Google API settings
+GOOGLE_API_KEY=api_key
+
+DATABASE_AGENT_URL=http://db-agent-database-agent:10001
+HOST_AGENT_URL=http://db-agent-host-agent:10000
+
+```
