@@ -220,7 +220,7 @@ Current agent: {current_agent['active_agent']}
             taskId = state['task_id']
         else:
             taskId = str(uuid.uuid4())
-        sessionId = state['task_id']
+        sessionId = state['session_id']
         task: Task
         messageId = ""
         metadata = {}
